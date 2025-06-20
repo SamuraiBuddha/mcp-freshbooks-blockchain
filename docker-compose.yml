@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # Blockchain node
+  blockchain:
+    build: .
+    container_name: freshbooks-blockchain-node
+    environment:
+      - NODE_ENV=production
+      - BLOCKCHAIN_PORT=8545
+      - DIFFICULTY=4
+      - INSTANCE_ID=${INSTANCE_ID:-Melchior-001}
+    volumes:
+      - blockchain_data:/app/blockchain_data
+      - ./logs:/app/logs
+    ports:
+      - "8545:8545"
+    restart: unless-stopped
+    networks:
+      - freshbooks-net
+
+  # MCP Server
+  mcp-server:
+    build: .
+    container_name: freshbooks-mcp-server
+    environment:
+      - FRESHBOOKS_CLIENT_ID=${FRESHBOOKS_CLIENT_ID}
+      - FRESHBOOKS_CLIENT_SECRET=${FRESHBOOKS_CLIENT_SECRET}
+      - FRESHBOOKS_REDIRECT_URI=${FRESHBOOKS_REDIRECT_URI:-http://localhost:8080/callback}
+      - FRESHBOOKS_ACCOUNT_ID=${FRESHBOOKS_ACCOUNT_ID}
+      - BLOCKCHAIN_NODE_URL=http://blockchain:8545
+      - INSTANCE_ID=${INSTANCE_ID:-Melchior-001}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    volumes:
+      - ./tokens:/app/tokens
+      - ./logs:/app/logs
+    depends_on:
+      - blockchain
+    restart: unless-stopped
+    networks:
+      - freshbooks-net
+    stdin_open: true
+    tty: true
+
+  # OAuth callback server (for initial auth)
+  oauth-callback:
+    image: nginx:alpine
+    container_name: freshbooks-oauth-callback
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - freshbooks-net
+    profiles:
+      - auth
+
+  # Blockchain explorer (optional)
+  explorer:
+    build:
+      context: .
+      dockerfile: Dockerfile.explorer
+    container_name: freshbooks-blockchain-explorer
+    environment:
+      - BLOCKCHAIN_NODE_URL=http://blockchain:8545
+    ports:
+      - "3000:3000"
+    depends_on:
+      - blockchain
+    networks:
+      - freshbooks-net
+    profiles:
+      - explorer
+
+volumes:
+  blockchain_data:
+    driver: local
+
+networks:
+  freshbooks-net:
+    driver: bridge

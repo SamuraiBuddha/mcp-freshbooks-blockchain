@@ -1,0 +1,22 @@
+FROM node:18-alpine
+
+# Install dependencies
+RUN apk add --no-cache python3 make g++
+
+# Set working directory
+WORKDIR /app
+
+# Copy explorer files
+COPY explorer/package*.json ./
+RUN npm ci --only=production
+
+COPY explorer/ .
+
+# Build the explorer
+RUN npm run build
+
+# Expose port
+EXPOSE 3000
+
+# Start the explorer
+CMD ["npm", "start"]
